@@ -1,0 +1,15 @@
+(test
+ (name test_parser)
+ (modules test_parser)
+ (libraries stc alcotest))
+
+(test
+ (name test_wellformed)
+ (modules test_wellformed)
+ (libraries stc alcotest))
+
+(test
+ (name test_interpreter)
+ (modules test_interpreter)
+ (libraries stc alcotest unix))
+

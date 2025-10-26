@@ -1,0 +1,13 @@
+(library
+ (name stc)
+ (modules ast loc parser lexer pretty parse wellformed interpreter))
+
+(menhir
+ (modules parser))
+
+(ocamllex lexer)
+
+(executable
+ (name main)
+ (modules main)
+ (libraries stc))
