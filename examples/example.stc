@@ -1,0 +1,9 @@
+// Simple client-server example with type annotations
+
+Client :: server!{quit: end}
+Client = server:quit.0
+
+Server :: rec X.client?{request: client![Int];X, quit: end}
+Server = rec X.client?{request: client![42].X, quit: 0}
+
+main = client::Client | server::Server

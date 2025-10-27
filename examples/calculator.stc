@@ -1,0 +1,9 @@
+Calculator = rec X.client?{
+  add: client?(a).client?(b).client![a + b].X,
+  multiply: client?(a).client?(b).client![a * b].X,
+  done: 0
+}
+
+Client = server:add.server![5].server![3].server?(result).server:done.0
+
+main = server::Calculator | client::Client

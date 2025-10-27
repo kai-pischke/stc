@@ -80,6 +80,8 @@ let rec pp_expr fmt = function
       Format.fprintf fmt "(%a >= %a)" pp_expr e1 pp_expr e2
   | EEq (e1, e2, _) -> 
       Format.fprintf fmt "(%a = %a)" pp_expr e1 pp_expr e2
+  | EChoice (e1, e2, _) ->
+      Format.fprintf fmt "(%a nondet %a)" pp_expr e1 pp_expr e2
 
 (* Pretty print processes *)
 let rec pp_process fmt = function
@@ -93,8 +95,8 @@ let rec pp_process fmt = function
       Format.fprintf fmt "%s![%a].%a" role pp_expr expr pp_process cont
   | PRecv (role, var, cont, _) -> 
       Format.fprintf fmt "%s?(%s).%a" role var pp_process cont
-  | PInt (role, branches, _) ->
-      Format.fprintf fmt "%s!{%a}" role (pp_branches pp_process) branches
+  | PInt (role, label, cont, _) ->
+      Format.fprintf fmt "%s:%s.%a" role label pp_process cont
   | PExt (role, branches, _) ->
       Format.fprintf fmt "%s?{%a}" role (pp_branches pp_process) branches
   | PIfThenElse (cond, then_proc, else_proc, _) ->
@@ -103,7 +105,13 @@ let rec pp_process fmt = function
 
 (* Pretty print a process definition *)
 let pp_process_definition fmt def =
-  Format.fprintf fmt "@[%s = %a@]" def.Ast.name pp_process def.Ast.body
+  match def.Ast.type_annotation with
+  | None ->
+      Format.fprintf fmt "@[%s = %a@]" def.Ast.name pp_process def.Ast.body
+  | Some ty ->
+      Format.fprintf fmt "@[%s :: %a@]@\n@[%s = %a@]" 
+        def.Ast.name pp_local ty
+        def.Ast.name pp_process def.Ast.body
 
 (* Pretty print a tagged process *)
 let pp_tagged_process fmt tagged =

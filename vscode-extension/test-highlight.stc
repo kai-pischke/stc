@@ -1,0 +1,43 @@
+// Test file for syntax highlighting demonstration
+// This file showcases all the language features
+
+// Simple process definition
+Client = server:quit.0
+
+// Recursive server with external choice
+Server = rec X.client?{
+  request: client![42].X,
+  quit: 0
+}
+
+// Process with expressions
+Calculator = rec X.client?{
+  add: client?(a).client?(b).client![a + b].X,
+  multiply: client?(a).client?(b).client![a * b].X,
+  done: 0
+}
+
+// Non-deterministic choice in expressions
+RandomSender = receiver![10 nondet 20 nondet 30].0
+
+// Boolean expressions
+BoolProcess = if (5 > 3) and (true or false) then
+  partner![true].0
+else
+  partner![false].0
+
+// Arithmetic expressions
+MathProcess = receiver![
+  (10 + 20) * 3 - (5 / 2) mod 3
+].0
+
+// Comparison operators
+CompareProcess = receiver![
+  (x < 10) and (y >= 20) and (z <= 30)
+].0
+
+// Main composition with parallel processes
+main = client::Client | server::Server | calculator::Calculator
+
+
+

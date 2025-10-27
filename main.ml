@@ -1,140 +1,188 @@
-(* main.ml: Command-line interface for session type parser *)
+(* main.ml: Command-line interface for session type checker *)
 
 open Stc
 
 (** Print usage information *)
 let usage () =
-  Printf.printf "Session Type Parser - Command Line Interface\n\n";
+  Printf.printf "Session Type Checker - Command Line Interface\n\n";
   Printf.printf "Usage:\n";
-  Printf.printf "  %s [options] <input>\n\n" Sys.argv.(0);
-  Printf.printf "Options:\n";
-  Printf.printf "  -g, --global      Parse as global type\n";
-  Printf.printf "  -l, --local       Parse as local type\n";
-  Printf.printf "  -p, --process     Parse as process (default)\n";
-  Printf.printf "  -f, --file        Read input from file instead of command line\n";
-  Printf.printf "  -h, --help        Show this help message\n\n";
+  Printf.printf "  %s [options] <program-file>\n\n" Sys.argv.(0);
+  Printf.printf "Main Options:\n";
+  Printf.printf "  -c, --check-only   Only parse and check well-formedness (no execution)\n";
+  Printf.printf "  -h, --help         Show this help message\n\n";
+  Printf.printf "  -g, --global       Parse as global type (string or file)\n";
+  Printf.printf "  -l, --local        Parse as local type (string or file)\n";
+  Printf.printf "  -p, --process      Parse as process (string or file)\n";
+  Printf.printf "  -s, --string       Parse from string instead of file\n\n";
   Printf.printf "Examples:\n";
-  Printf.printf "  %s -g \"p -> q:[int]; end\"\n" Sys.argv.(0);
-  Printf.printf "  %s -l \"p?[bool]; end\"\n" Sys.argv.(0);
-  Printf.printf "  %s -p \"p![42].0\"\n" Sys.argv.(0);
-  Printf.printf "  %s -f -g protocol.global\n" Sys.argv.(0);
+  Printf.printf "  %s program.stc              # Parse, check, and execute\n" Sys.argv.(0);
+  Printf.printf "  %s -c program.stc           # Only parse and check\n" Sys.argv.(0);
+  Printf.printf "  %s -g -s \"p -> q:[int]; end\"  # Parse global type from string\n" Sys.argv.(0);
   exit 0
 
-(** Parse mode *)
-type mode = Global | Local | Process
+(** Parse mode for legacy commands *)
+type mode = Program | Global | Local | Process
 
-(** Parse global type and display *)
-let parse_global_string input =
+(** Process a program file: parse, check well-formedness, and optionally execute *)
+let process_program filename ~check_only =
   try
-    let result = Parse.global_from_string input in
-    Format.printf "@[<v>Input:@,  %s@,@,Parsed:@,  %a@,@,Type: Global@]@."
-      input Pretty.pp_global result
+    (* Parse the program *)
+    Printf.printf "Parsing %s...\n" filename;
+    let prog = Parse.program_from_file filename in
+    Printf.printf "✓ Parsing successful\n\n";
+    
+    (* Display the parsed program *)
+    Printf.printf "Program:\n";
+    Printf.printf "────────\n";
+    Format.printf "%a@\n@\n" Pretty.pp_program prog;
+    
+    (* Check well-formedness *)
+    Printf.printf "Checking well-formedness...\n";
+    Wellformed.check_program prog;
+    Printf.printf "✓ Well-formedness check passed\n\n";
+    
+    (* Execute if requested *)
+    if not check_only then (
+      Printf.printf "Executing program...\n";
+      Printf.printf "════════════════════\n\n";
+      Interpreter.execute_program prog
+    ) else (
+      Printf.printf "Skipping execution (check-only mode)\n"
+    )
   with
   | Parse.ParseError err ->
-      Printf.eprintf "Error: %s\n" (Parse.string_of_error err);
+      Printf.eprintf "\n✗ Parse Error: %s\n" (Parse.string_of_error err);
+      exit 1
+  | Wellformed.IllFormed err ->
+      Printf.eprintf "\n✗ Well-formedness Error: %s\n" (Wellformed.string_of_error err);
+      exit 1
+  | Interpreter.RuntimeError err ->
+      Printf.eprintf "\n✗ Runtime Error: %s\n" (Interpreter.string_of_error err);
+      exit 1
+  | Sys_error msg ->
+      Printf.eprintf "\n✗ File Error: %s\n" msg;
+      exit 1
+
+(** Parse global type and display *)
+let parse_global ~from_string input =
+  try
+    let result = 
+      if from_string then Parse.global_from_string input
+      else Parse.global_from_file input
+    in
+    let source = if from_string then "String" else "File: " ^ input in
+    Format.printf "@[<v>Source: %s@,@,Parsed:@,  %a@,@,Type: Global@]@." source Pretty.pp_global result;
+    
+    (* Check well-formedness *)
+    Printf.printf "\nChecking well-formedness...\n";
+    Wellformed.check_global result;
+    Printf.printf "✓ Well-formedness check passed\n"
+  with
+  | Parse.ParseError err ->
+      Printf.eprintf "\n✗ Parse Error: %s\n" (Parse.string_of_error err);
+      exit 1
+  | Wellformed.IllFormed err ->
+      Printf.eprintf "\n✗ Well-formedness Error: %s\n" (Wellformed.string_of_error err);
+      exit 1
+  | Sys_error msg ->
+      Printf.eprintf "\n✗ File Error: %s\n" msg;
       exit 1
 
 (** Parse local type and display *)
-let parse_local_string input =
+let parse_local ~from_string input =
   try
-    let result = Parse.local_from_string input in
-    Format.printf "@[<v>Input:@,  %s@,@,Parsed:@,  %a@,@,Type: Local@]@."
-      input Pretty.pp_local result
+    let result = 
+      if from_string then Parse.local_from_string input
+      else Parse.local_from_file input
+    in
+    let source = if from_string then "String" else "File: " ^ input in
+    Format.printf "@[<v>Source: %s@,@,Parsed:@,  %a@,@,Type: Local@]@." source Pretty.pp_local result;
+    
+    (* Check well-formedness *)
+    Printf.printf "\nChecking well-formedness...\n";
+    Wellformed.check_local result;
+    Printf.printf "✓ Well-formedness check passed\n"
   with
   | Parse.ParseError err ->
-      Printf.eprintf "Error: %s\n" (Parse.string_of_error err);
+      Printf.eprintf "\n✗ Parse Error: %s\n" (Parse.string_of_error err);
+      exit 1
+  | Wellformed.IllFormed err ->
+      Printf.eprintf "\n✗ Well-formedness Error: %s\n" (Wellformed.string_of_error err);
+      exit 1
+  | Sys_error msg ->
+      Printf.eprintf "\n✗ File Error: %s\n" msg;
       exit 1
 
 (** Parse process and display *)
-let parse_process_string input =
+let parse_process ~from_string input =
   try
-    let result = Parse.process_from_string input in
-    Format.printf "@[<v>Input:@,  %s@,@,Parsed:@,  %a@,@,Type: Process@]@."
-      input Pretty.pp_process result
+    let result = 
+      if from_string then Parse.process_from_string input
+      else Parse.process_from_file input
+    in
+    let source = if from_string then "String" else "File: " ^ input in
+    Format.printf "@[<v>Source: %s@,@,Parsed:@,  %a@,@,Type: Process@]@." source Pretty.pp_process result;
+    
+    (* Check well-formedness *)
+    Printf.printf "\nChecking well-formedness...\n";
+    Wellformed.check_process result;
+    Printf.printf "✓ Well-formedness check passed\n"
   with
   | Parse.ParseError err ->
-      Printf.eprintf "Error: %s\n" (Parse.string_of_error err);
+      Printf.eprintf "\n✗ Parse Error: %s\n" (Parse.string_of_error err);
       exit 1
-
-(** Parse global type from file and display *)
-let parse_global_file filename =
-  try
-    let result = Parse.global_from_file filename in
-    Format.printf "@[<v>File: %s@,@,Parsed:@,  %a@,@,Type: Global@]@."
-      filename Pretty.pp_global result
-  with
-  | Parse.ParseError err ->
-      Printf.eprintf "Error: %s\n" (Parse.string_of_error err);
+  | Wellformed.IllFormed err ->
+      Printf.eprintf "\n✗ Well-formedness Error: %s\n" (Wellformed.string_of_error err);
       exit 1
   | Sys_error msg ->
-      Printf.eprintf "File error: %s\n" msg;
-      exit 1
-
-(** Parse local type from file and display *)
-let parse_local_file filename =
-  try
-    let result = Parse.local_from_file filename in
-    Format.printf "@[<v>File: %s@,@,Parsed:@,  %a@,@,Type: Local@]@."
-      filename Pretty.pp_local result
-  with
-  | Parse.ParseError err ->
-      Printf.eprintf "Error: %s\n" (Parse.string_of_error err);
-      exit 1
-  | Sys_error msg ->
-      Printf.eprintf "File error: %s\n" msg;
-      exit 1
-
-(** Parse process from file and display *)
-let parse_process_file filename =
-  try
-    let result = Parse.process_from_file filename in
-    Format.printf "@[<v>File: %s@,@,Parsed:@,  %a@,@,Type: Process@]@."
-      filename Pretty.pp_process result
-  with
-  | Parse.ParseError err ->
-      Printf.eprintf "Error: %s\n" (Parse.string_of_error err);
-      exit 1
-  | Sys_error msg ->
-      Printf.eprintf "File error: %s\n" msg;
+      Printf.eprintf "\n✗ File Error: %s\n" msg;
       exit 1
 
 (** Main entry point *)
 let () =
-  let mode = ref Process in
-  let from_file = ref false in
+  let mode = ref Program in
+  let from_string = ref false in
+  let check_only = ref false in
   let input = ref None in
 
   let set_mode m () = mode := m in
-  let set_file () = from_file := true in
+  let set_string () = from_string := true in
+  let set_check_only () = check_only := true in
   let set_input s = input := Some s in
 
   let spec = [
+    (* Main options *)
+    "-c", Arg.Unit set_check_only, "Only check well-formedness (no execution)";
+    "--check-only", Arg.Unit set_check_only, "Only check well-formedness (no execution)";
+    "-h", Arg.Unit usage, "Show help";
+    "--help", Arg.Unit usage, "Show help";
+    
+    (* Legacy options for individual types *)
     "-g", Arg.Unit (set_mode Global), "Parse as global type";
     "--global", Arg.Unit (set_mode Global), "Parse as global type";
     "-l", Arg.Unit (set_mode Local), "Parse as local type";
     "--local", Arg.Unit (set_mode Local), "Parse as local type";
     "-p", Arg.Unit (set_mode Process), "Parse as process";
     "--process", Arg.Unit (set_mode Process), "Parse as process";
-    "-f", Arg.Unit set_file, "Read from file";
-    "--file", Arg.Unit set_file, "Read from file";
-    "-h", Arg.Unit usage, "Show help";
-    "--help", Arg.Unit usage, "Show help";
+    "-s", Arg.Unit set_string, "Parse from string";
+    "--string", Arg.Unit set_string, "Parse from string";
   ] in
 
-  Arg.parse spec set_input "Session Type Parser";
+  Arg.parse spec set_input "Session Type Checker";
 
   match !input with
   | None ->
       Printf.eprintf "Error: No input provided\n\n";
       usage ()
   | Some inp ->
-      if !from_file then
-        match !mode with
-        | Global -> parse_global_file inp
-        | Local -> parse_local_file inp
-        | Process -> parse_process_file inp
-      else
-        match !mode with
-        | Global -> parse_global_string inp
-        | Local -> parse_local_string inp
-        | Process -> parse_process_string inp
+      match !mode with
+      | Program -> 
+          if !from_string then (
+            Printf.eprintf "Error: String input not supported for programs\n";
+            Printf.eprintf "Programs must be read from files\n";
+            exit 1
+          );
+          process_program inp ~check_only:!check_only
+      | Global -> parse_global ~from_string:!from_string inp
+      | Local -> parse_local ~from_string:!from_string inp
+      | Process -> parse_process ~from_string:!from_string inp

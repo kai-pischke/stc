@@ -9,7 +9,7 @@ open Ast
 %token LBRACK RBRACK
 %token LBRACE RBRACE COLON COLONCOLON COMMA BAR DOT SEMI
 %token LPAREN RPAREN
-%token ETRUE EFALSE NOT OR AND
+%token ETRUE EFALSE NOT OR AND NONDET
 %token PLUS MINUS TIMES DIV MOD
 %token LT GT LE GE EQ
 %token EOF
@@ -21,6 +21,7 @@ open Ast
 %start <string Ast.program> program_file
 
 /* Operator precedence and associativity for expressions */
+%left NONDET
 %left OR
 %left AND
 %left EQ
@@ -78,31 +79,32 @@ pfile:
   processes EOF                           { $1 }
 
 expression:
-  | ETRUE                       { ETrue Loc.dummy }
-  | EFALSE                      { EFalse Loc.dummy }
-  | EINT                        { EInt ($1, Loc.dummy) }
-  | ident                       { EVar ($1, Loc.dummy) }
-  | NOT expression              { ENot ($2, Loc.dummy) }
-  | expression OR expression    { EOr ($1, $3, Loc.dummy) }
-  | expression AND expression   { EAnd ($1, $3, Loc.dummy) }
-  | expression PLUS expression  { EPlus ($1, $3, Loc.dummy) }
-  | expression MINUS expression { EMinus ($1, $3, Loc.dummy) }
-  | expression TIMES expression { ETimes ($1, $3, Loc.dummy) }
-  | expression DIV expression   { EDiv ($1, $3, Loc.dummy) }
-  | expression MOD expression   { EMod ($1, $3, Loc.dummy) }
-  | expression LT expression    { ELt ($1, $3, Loc.dummy) }
-  | expression GT expression    { EGt ($1, $3, Loc.dummy) }
-  | expression LE expression    { ELe ($1, $3, Loc.dummy) }
-  | expression GE expression    { EGe ($1, $3, Loc.dummy) }
-  | expression EQ expression    { EEq ($1, $3, Loc.dummy) }
-  | LPAREN expression RPAREN    { $2 }
+  | ETRUE                         { ETrue Loc.dummy }
+  | EFALSE                        { EFalse Loc.dummy }
+  | EINT                          { EInt ($1, Loc.dummy) }
+  | ident                         { EVar ($1, Loc.dummy) }
+  | NOT expression                { ENot ($2, Loc.dummy) }
+  | expression OR expression      { EOr ($1, $3, Loc.dummy) }
+  | expression AND expression     { EAnd ($1, $3, Loc.dummy) }
+  | expression PLUS expression    { EPlus ($1, $3, Loc.dummy) }
+  | expression MINUS expression   { EMinus ($1, $3, Loc.dummy) }
+  | expression TIMES expression   { ETimes ($1, $3, Loc.dummy) }
+  | expression DIV expression     { EDiv ($1, $3, Loc.dummy) }
+  | expression MOD expression     { EMod ($1, $3, Loc.dummy) }
+  | expression LT expression      { ELt ($1, $3, Loc.dummy) }
+  | expression GT expression      { EGt ($1, $3, Loc.dummy) }
+  | expression LE expression      { ELe ($1, $3, Loc.dummy) }
+  | expression GE expression      { EGe ($1, $3, Loc.dummy) }
+  | expression EQ expression      { EEq ($1, $3, Loc.dummy) }
+  | expression NONDET expression  { EChoice ($1, $3, Loc.dummy) }
+  | LPAREN expression RPAREN      { $2 }
 
 processes:
   | EINT                                          { if $1 = 0 then PInact Loc.dummy 
                                                      else failwith "Invalid process literal" }
   | ident                                         { PVar ($1, Loc.dummy) }
   | REC ident DOT processes                       { PRec ($2, $4, Loc.dummy) }
-  | ident BANG LBRACE p_lab RBRACE                { PInt ($1, $4, Loc.dummy) }
+  | ident COLON ident DOT processes               { PInt ($1, $3, $5, Loc.dummy) }
   | ident QUEST LBRACE p_lab RBRACE               { PExt ($1, $4, Loc.dummy) }
   | ident BANG LBRACK expression RBRACK DOT processes  { PSend ($1, $4, $7, Loc.dummy) }
   | ident QUEST LPAREN ident RPAREN DOT processes      { PRecv ($1, $4, $7, Loc.dummy) }
@@ -124,7 +126,15 @@ process_defs:
 | process_def process_defs                { $1 :: $2 }
 
 process_def:
-  ident EQ processes                      { { name = $1; body = $3; loc = Loc.dummy } }
+  /* Process definition without type annotation */
+  | ident EQ processes                    
+    { { name = $1; type_annotation = None; body = $3; loc = Loc.dummy } }
+  /* Process definition with type annotation on previous line */
+  | ident COLONCOLON local_type ident EQ processes  
+    { if $1 = $4 then 
+        { name = $1; type_annotation = Some $3; body = $6; loc = Loc.dummy }
+      else 
+        failwith (Printf.sprintf "Process name mismatch: %s :: %s but %s = ..." $1 (Pretty.string_of_local $3) $4) }
 
 main_def:
   MAIN EQ tagged_comp                     { $3 }

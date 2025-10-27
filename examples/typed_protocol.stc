@@ -1,0 +1,14 @@
+// Example: Session type protocol with type annotations
+// This demonstrates optional type annotations for documentation
+
+// Client sends a value and receives a result
+Client :: server![Int];server?[Int];end
+Client = server![42].server?(result).0
+
+// Server receives a value and sends it back incremented
+Server :: client?[Int];client![Int];end
+Server = client?(x).client![x + 1].0
+
+// Main composition
+main = client::Client | server::Server
+

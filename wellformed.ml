@@ -204,11 +204,9 @@ let rec check_process_free (bound : StringSet.t) (p : string processes) : unit =
   | PRecv (_, _, cont, _) ->
       (* Note: we don't check the received variable binding *)
       check_process_free bound cont
-  | PInt (_, branches, _) ->
-      if branches = [] then
-        raise (IllFormed (EmptyChoice "process internal choice"));
-      check_unique_labels branches "process internal choice";
-      List.iter (fun (_, p) -> check_process_free bound p) branches
+  | PInt (_, _, cont, _) ->
+      (* Internal choice selects exactly one label *)
+      check_process_free bound cont
   | PExt (_, branches, _) ->
       if branches = [] then
         raise (IllFormed (EmptyChoice "process external choice"));
@@ -228,7 +226,7 @@ let rec is_guarded_process (var : string) (p : string processes) : bool =
       else is_guarded_process var body
   | PSend (_, _, _, _) | PRecv (_, _, _, _) ->
       true  (* Communication guards *)
-  | PInt (_, _branches, _) | PExt (_, _branches, _) ->
+  | PInt (_, _, _, _) | PExt (_, _, _) ->
       true  (* Choice guards *)
   | PIfThenElse (_, then_proc, else_proc, _) ->
       (* If-then-else doesn't guard - both branches must be guarded *)
@@ -249,11 +247,53 @@ let check_process (p : string processes) : unit =
         check_unguarded body
     | PSend (_, _, cont, _) | PRecv (_, _, cont, _) ->
         check_unguarded cont
-    | PInt (_, branches, _) | PExt (_, branches, _) ->
+    | PInt (_, _, cont, _) ->
+        check_unguarded cont
+    | PExt (_, branches, _) ->
         List.iter (fun (_, p) -> check_unguarded p) branches
     | PIfThenElse (_, then_proc, else_proc, _) ->
         check_unguarded then_proc;
         check_unguarded else_proc
   in
   check_unguarded p
+
+(** Check for duplicate process names *)
+let check_unique_process_names (defs : string process_definition list) : unit =
+  let rec check_dups seen = function
+    | [] -> ()
+    | def :: rest ->
+        if StringSet.mem def.name seen then
+          raise (IllFormed (DuplicateLabel (def.name, "process definitions")))
+        else
+          check_dups (StringSet.add def.name seen) rest
+  in
+  check_dups StringSet.empty defs
+
+(** Check that all referenced processes are defined *)
+let check_process_refs (defs : string process_definition list) (main : string tagged_process list) : unit =
+  let defined_names = 
+    List.fold_left (fun acc def -> StringSet.add def.name acc) StringSet.empty defs
+  in
+  List.iter (fun tagged ->
+    if not (StringSet.mem tagged.process_ref defined_names) then
+      raise (IllFormed (FreeVariable (tagged.process_ref, "main composition")))
+  ) main
+
+(** Check if a program is well-formed *)
+let check_program (prog : string program) : unit =
+  (* Check for duplicate process names *)
+  check_unique_process_names prog.definitions;
+  
+  (* Check all process definitions are well-formed *)
+  List.iter (fun def -> 
+    (* Check the process body *)
+    check_process def.body;
+    (* Check the type annotation if present *)
+    match def.type_annotation with
+    | None -> ()
+    | Some ty -> check_local ty
+  ) prog.definitions;
+  
+  (* Check that all processes referenced in main are defined *)
+  check_process_refs prog.definitions prog.main
 

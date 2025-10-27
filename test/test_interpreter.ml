@@ -100,12 +100,13 @@ main = sender :: P
   in
   test_raises_error is_undefined_var prog_str ()
 
-(** Test: Internal choice (random) *)
+(** Test: Internal choice with matching external choice *)
 let test_internal_choice () =
   let prog_str = {|
-P = p!{option1: 0, option2: 0, option3: 0}
+Sender = receiver:option1.0
+Receiver = sender?{option1: 0, option2: 0, option3: 0}
 
-main = sender :: P
+main = sender :: Sender | receiver :: Receiver
 |} in
   test_executes_ok prog_str ()
 

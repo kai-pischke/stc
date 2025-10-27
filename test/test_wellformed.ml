@@ -177,7 +177,7 @@ let wellformed_process_tests = [
   
   "choice with branches", `Quick,
     test_wellformed_passes "choice" Wellformed.check_process
-      (Ast.PInt ("p", [("ok", Ast.PInact dummy); ("error", Ast.PInact dummy)], dummy));
+      (Ast.PInt ("p", "ok", Ast.PInact dummy, dummy));
   
   (* Invalid cases *)
   "free variable fails", `Quick,
@@ -190,22 +190,20 @@ let wellformed_process_tests = [
       (Ast.PRec ("X", Ast.PVar ("X", dummy), dummy))
       (Wellformed.UnguardedRecursion "X");
   
-  "empty internal choice fails", `Quick,
-    test_wellformed_fails "empty int" Wellformed.check_process
-      (Ast.PInt ("p", [], dummy))
-      (Wellformed.EmptyChoice "process internal choice");
+  (* Internal choice always has exactly one branch, so no empty choice test needed *)
+  "well-formed internal choice", `Quick,
+    test_wellformed_passes "int choice" Wellformed.check_process
+      (Ast.PInt ("p", "action", Ast.PInact dummy, dummy));
   
   "empty external choice fails", `Quick,
     test_wellformed_fails "empty ext" Wellformed.check_process
       (Ast.PExt ("p", [], dummy))
       (Wellformed.EmptyChoice "process external choice");
   
-  "duplicate labels in internal choice fail", `Quick,
-    test_wellformed_fails "dup int" Wellformed.check_process
-      (Ast.PInt ("p",
-        [("action", Ast.PInact dummy); ("action", Ast.PInact dummy)],
-        dummy))
-      (Wellformed.DuplicateLabel ("action", "process internal choice"));
+  (* Internal choice has exactly one label, so no duplicate labels possible *)
+  "nested internal choice", `Quick,
+    test_wellformed_passes "nested int" Wellformed.check_process
+      (Ast.PInt ("p", "l1", Ast.PInt ("q", "l2", Ast.PInact dummy, dummy), dummy));
   
   "duplicate labels in external choice fail", `Quick,
     test_wellformed_fails "dup ext" Wellformed.check_process

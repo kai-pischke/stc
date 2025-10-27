@@ -146,10 +146,8 @@ let process_tests = [
       (Ast.PRecv ("p", "x", Ast.PInact dummy, dummy));
   
   "internal choice", `Quick,
-    test_parse_process "p!{ok:0, error:0}"
-      (Ast.PInt ("p",
-        [("ok", Ast.PInact dummy); ("error", Ast.PInact dummy)],
-        dummy));
+    test_parse_process "p:ok.0"
+      (Ast.PInt ("p", "ok", Ast.PInact dummy, dummy));
   
   "external choice", `Quick,
     test_parse_process "p?{success:0, failure:0}"

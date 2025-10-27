@@ -71,6 +71,8 @@ type 'v expr =
   | EGe        of 'v expr * 'v expr * t
   (* e1 = e2 *)
   | EEq        of 'v expr * 'v expr * t
+  (* e1 ⊕ e2 - non-deterministic choice *)
+  | EChoice    of 'v expr * 'v expr * t
 
 (* Processes P1, P2, ...*)
 type 'v processes =
@@ -80,9 +82,9 @@ type 'v processes =
   | PVar       of 'v                     * t
   (* 𝜇X.P *)
   | PRec       of 'v * 'v processes      * t
-  (* p ⊲ l.P *)
-  | PInt       of role * (label * 'v processes) list * t
-  (* p ⊳ {l1,...,ln} *)
+  (* p ⊲ l.P - internal choice selects exactly one label *)
+  | PInt       of role * label * 'v processes * t
+  (* p ⊳ {l1:P1,...,ln:Pn} - external choice offers multiple branches *)
   | PExt       of role * (label * 'v processes) list * t
   (* p!⟨e⟩.P *)
   | PSend      of role * 'v expr * 'v processes * t
@@ -91,9 +93,10 @@ type 'v processes =
   (* if e then P1 else P2 *)
   | PIfThenElse of 'v expr * 'v processes * 'v processes * t
 
-(* Process definition: P = body *)
+(* Process definition: P = body, optionally with type annotation P :: T *)
 type 'v process_definition = {
   name: string;
+  type_annotation: 'v local option;  (* Optional type annotation *)
   body: 'v processes;
   loc: t;
 }

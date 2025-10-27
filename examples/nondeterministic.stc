@@ -1,0 +1,12 @@
+// Example demonstrating non-deterministic choice in expressions
+// The sender randomly chooses between 10 and 20
+
+Sender :: receiver![Int];end
+Sender = receiver![10 nondet 20].0  // Non-deterministic choice
+
+Receiver :: sender?[Int];end
+Receiver = sender?(x).0              // Receive the chosen value
+
+// Main composition
+main = sender::Sender | receiver::Receiver
+

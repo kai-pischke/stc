@@ -47,3 +47,11 @@ val check_local : string local -> unit
 *)
 val check_process : string processes -> unit
 
+(** Check if a program is well-formed
+    Checks:
+    - All process definitions are well-formed
+    - No duplicate process names
+    - All referenced processes in main are defined
+*)
+val check_program : string program -> unit
+

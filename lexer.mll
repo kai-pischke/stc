@@ -12,6 +12,7 @@ let ident = alpha (alpha | digit | '_')*
 rule token = parse
   | white      { token lexbuf }
   | newline    { Lexing.new_line lexbuf; token lexbuf }
+  | "//" [^ '\r' '\n']* { token lexbuf }  (* Skip comments *)
   | "end"      { END }
   | "rec"      { REC }
   | "main"     { MAIN }
@@ -24,6 +25,7 @@ rule token = parse
   | "or"       { OR }
   | "and"      { AND }
   | "mod"      { MOD }
+  | "nondet"   { NONDET }
   | "->"       { ARROW }
   | "::"       { COLONCOLON }
   | "?"        { QUEST }

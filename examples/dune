@@ -1,0 +1,6 @@
+(executable
+ (name type_check_example)
+ (modules type_check_example)
+ (libraries stc))
+
+

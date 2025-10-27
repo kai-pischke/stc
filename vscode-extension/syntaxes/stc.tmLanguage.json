@@ -1,0 +1,141 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Session Type Checker",
+  "scopeName": "source.stc",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#keywords" },
+    { "include": "#operators" },
+    { "include": "#numbers" },
+    { "include": "#strings" },
+    { "include": "#identifiers" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.stc",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.stc",
+          "match": "\\b(if|then|else|rec|main|end)\\b"
+        },
+        {
+          "name": "keyword.other.stc",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.stc",
+          "match": "\\b(and|or|not|nondet|mod)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.stc",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.doublecolon.stc",
+          "match": "::"
+        },
+        {
+          "name": "keyword.operator.send.stc",
+          "match": "!"
+        },
+        {
+          "name": "keyword.operator.receive.stc",
+          "match": "\\?"
+        },
+        {
+          "name": "keyword.operator.choice.stc",
+          "match": ":"
+        },
+        {
+          "name": "keyword.operator.parallel.stc",
+          "match": "\\|"
+        },
+        {
+          "name": "keyword.operator.assignment.stc",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.arithmetic.stc",
+          "match": "\\+|-|\\*|/|<|>|<=|>="
+        },
+        {
+          "name": "keyword.operator.dot.stc",
+          "match": "\\."
+        },
+        {
+          "name": "keyword.operator.semicolon.stc",
+          "match": ";"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.stc",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.stc",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.stc",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "entity.name.type.stc",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        },
+        {
+          "name": "variable.other.stc",
+          "match": "\\b[a-z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.section.braces.stc",
+          "match": "[{}]"
+        },
+        {
+          "name": "punctuation.section.brackets.stc",
+          "match": "[\\[\\]]"
+        },
+        {
+          "name": "punctuation.section.parens.stc",
+          "match": "[()]"
+        },
+        {
+          "name": "punctuation.separator.comma.stc",
+          "match": ","
+        }
+      ]
+    }
+  }
+}
+
+

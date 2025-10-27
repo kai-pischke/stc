@@ -1,0 +1,14 @@
+// Example: Dice game with type annotations
+// Players roll dice and dealer announces winner
+
+Player :: dealer![Int];end
+Player = dealer![
+  (1 nondet 2 nondet 3 nondet 4 nondet 5 nondet 6) + 
+  (1 nondet 2 nondet 3 nondet 4 nondet 5 nondet 6)
+].0
+
+Dealer :: player?[Int];end
+Dealer = player?(roll).0
+
+// Main composition
+main = player::Player | dealer::Dealer

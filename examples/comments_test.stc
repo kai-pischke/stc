@@ -1,0 +1,10 @@
+// This is a test file with comments
+// Multiple lines of comments
+
+// Process definitions
+Client = server![5].0  // Inline comment
+Server = client?(x).0  // Another inline comment
+
+// Main program
+main = client::Client | server::Server  // Final comment
+

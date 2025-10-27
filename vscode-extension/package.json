@@ -1,0 +1,51 @@
+{
+  "name": "stc-language",
+  "displayName": "Session Type Checker Language Support",
+  "description": "Syntax highlighting for Session Type Checker (.stc) files",
+  "version": "0.1.0",
+  "publisher": "session-types",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "session types",
+    "stc",
+    "concurrency",
+    "protocol"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "stc",
+        "aliases": [
+          "Session Type Checker",
+          "stc"
+        ],
+        "extensions": [
+          ".stc"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/stc-icon.png",
+          "dark": "./icons/stc-icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "stc",
+        "scopeName": "source.stc",
+        "path": "./syntaxes/stc.tmLanguage.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/stc-vscode"
+  }
+}
+
+

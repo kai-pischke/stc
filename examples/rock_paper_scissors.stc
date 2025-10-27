@@ -1,0 +1,15 @@
+// Rock Paper Scissors game demonstrating internal choice syntax
+
+// Player 1 selects a move and sends it to Player 2
+Player1 = player2:rock.player2?(result).0
+
+// Player 2 makes a choice based on random non-deterministic selection
+// and compares with Player 1's move
+Player2 = player1?{
+  rock: player1![(1 nondet 2 nondet 3)].0,
+  paper: player1![(1 nondet 2 nondet 3)].0,
+  scissors: player1![(1 nondet 2 nondet 3)].0
+}
+
+main = player1::Player1 | player2::Player2
+

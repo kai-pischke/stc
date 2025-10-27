@@ -129,6 +129,11 @@ let rec eval_expr (env : value Env.t) (expr : string expr) : value =
        | VBool b1, VBool b2 -> VBool (b1 = b2)
        | VInt _, VBool _ | VBool _, VInt _ ->
            raise (RuntimeError (TypeError "= expects same types")))
+  
+  | EChoice (e1, e2, _) ->
+      (* Non-deterministic choice: randomly pick one branch *)
+      if Random.bool () then eval_expr env e1
+      else eval_expr env e2
 
 (** Process definitions lookup *)
 let find_process_def (defs : string process_definition list) (name : string) : string processes =
@@ -136,30 +141,57 @@ let find_process_def (defs : string process_definition list) (name : string) : s
   | Some def -> def.body
   | None -> raise (RuntimeError (UndefinedProcess name))
 
-(** Substitute process variables with their definitions *)
-let rec subst_process (defs : string process_definition list) (p : string processes) : string processes =
+(** Substitute a specific variable with a process (for unfolding recursion) *)
+let rec subst_var (var : string) (replacement : string processes) (p : string processes) : string processes =
+  match p with
+  | PInact _ -> p
+  | PVar (name, _) when name = var -> replacement
+  | PVar _ -> p
+  | PRec (v, body, loc) ->
+      if v = var then
+        (* Variable is shadowed, don't substitute inside *)
+        p
+      else
+        PRec (v, subst_var var replacement body, loc)
+  | PInt (role, label, cont, loc) ->
+      PInt (role, label, subst_var var replacement cont, loc)
+  | PExt (role, branches, loc) ->
+      PExt (role, List.map (fun (l, p) -> (l, subst_var var replacement p)) branches, loc)
+  | PSend (role, expr, cont, loc) ->
+      PSend (role, expr, subst_var var replacement cont, loc)
+  | PRecv (role, v, cont, loc) ->
+      PRecv (role, v, subst_var var replacement cont, loc)
+  | PIfThenElse (cond, then_proc, else_proc, loc) ->
+      PIfThenElse (cond, subst_var var replacement then_proc, subst_var var replacement else_proc, loc)
+
+(** Substitute process variables with their definitions, respecting bound variables *)
+let rec subst_process_aux (bound : string list) (defs : string process_definition list) (p : string processes) : string processes =
   match p with
   | PInact _ -> p
   | PVar (name, _loc) -> 
-      (* Look up the process definition and substitute recursively *)
-      find_process_def defs name
-  | PRec (v, body, loc) -> PRec (v, subst_process defs body, loc)
-  | PInt (role, branches, loc) ->
-      PInt (role, List.map (fun (l, p) -> (l, subst_process defs p)) branches, loc)
+      (* Only substitute if not bound by a rec *)
+      if List.mem name bound then
+        p
+      else
+        (* Look up the process definition *)
+        find_process_def defs name
+  | PRec (v, body, loc) -> 
+      (* Add v to bound variables when processing body *)
+      PRec (v, subst_process_aux (v :: bound) defs body, loc)
+  | PInt (role, label, cont, loc) ->
+      PInt (role, label, subst_process_aux bound defs cont, loc)
   | PExt (role, branches, loc) ->
-      PExt (role, List.map (fun (l, p) -> (l, subst_process defs p)) branches, loc)
+      PExt (role, List.map (fun (l, p) -> (l, subst_process_aux bound defs p)) branches, loc)
   | PSend (role, expr, cont, loc) ->
-      PSend (role, expr, subst_process defs cont, loc)
+      PSend (role, expr, subst_process_aux bound defs cont, loc)
   | PRecv (role, var, cont, loc) ->
-      PRecv (role, var, subst_process defs cont, loc)
+      PRecv (role, var, subst_process_aux bound defs cont, loc)
   | PIfThenElse (cond, then_proc, else_proc, loc) ->
-      PIfThenElse (cond, subst_process defs then_proc, subst_process defs else_proc, loc)
+      PIfThenElse (cond, subst_process_aux bound defs then_proc, subst_process_aux bound defs else_proc, loc)
 
-(** Random choice from a list *)
-let random_choice (choices : 'a list) : 'a =
-  let n = List.length choices in
-  let idx = Random.int n in
-  List.nth choices idx
+(** Substitute process variables with their definitions *)
+let subst_process (defs : string process_definition list) (p : string processes) : string processes =
+  subst_process_aux [] defs p
 
 (** Execute a program *)
 let execute_program (prog : string program) =
@@ -167,7 +199,7 @@ let execute_program (prog : string program) =
   Printf.printf "║  Program Execution Starting              ║\n";
   Printf.printf "╚══════════════════════════════════════════╝\n\n";
   
-  (* Initialize random seed *)
+  (* Initialize random seed for non-deterministic choice *)
   Random.self_init ();
   
   (* Build initial state: map participants to their processes *)
@@ -210,7 +242,7 @@ let execute_program (prog : string program) =
   
   and try_step state =
     (* Find processes that can make progress *)
-    (* For now, prioritize: if-then-else, sends, receives, choices *)
+    (* Prioritize: if-then-else, sends, receives, choices *)
     
     (* Try if-then-else first (local action) *)
     let state_opt = try_if_then_else state in
@@ -250,29 +282,64 @@ let execute_program (prog : string program) =
                Some new_state
            | VInt _ ->
                raise (RuntimeError (TypeError "if condition must be boolean")))
-      | (part, PRec (_v, body, _), env) :: rest ->
-          (* Unfold recursion and try again *)
-          find_if acc ((part, body, env) :: rest)
+      | (part, (PRec (v, body, _) as rec_proc), env) :: rest ->
+          (* Unfold recursion: replace v with the whole recursion in body *)
+          let unfolded = subst_var v rec_proc body in
+          find_if acc ((part, unfolded, env) :: rest)
       | item :: rest -> find_if (item :: acc) rest
     in
     find_if [] state
   
   and try_internal_choice state =
-    (* Find a participant with an internal choice *)
+    (* Find a participant with an internal choice and match with external choice *)
     let rec find_choice acc = function
       | [] -> None
-      | (part, PInt (role, branches, _), env) :: rest ->
-          if branches = [] then
-            raise (RuntimeError (InvalidChoice "empty internal choice"))
-          else
-            let (label, cont) = random_choice branches in
-            Printf.printf "  %s: internal choice → %s (to %s)\n" part label role;
-            let cont_subst = subst_process prog.definitions cont in
-            let new_state = List.rev_append acc ((part, cont_subst, env) :: rest) in
-            Some new_state
-      | (part, PRec (_v, body, _), env) :: rest ->
-          find_choice acc ((part, body, env) :: rest)
+      | (sender_part, PInt (receiver_role, label, sender_cont, _), sender_env) :: rest ->
+          (* Look for matching external choice at receiver *)
+          let recv_opt = find_external_choice sender_part receiver_role label (List.rev_append acc rest) in
+          (match recv_opt with
+           | Some (recv_part, recv_cont, recv_env, others) ->
+               Printf.printf "  %s → %s: label '%s'\n" sender_part recv_part label;
+               
+               let sender_cont_subst = subst_process prog.definitions sender_cont in
+               let recv_cont_subst = subst_process prog.definitions recv_cont in
+               
+               let new_state =
+                 (sender_part, sender_cont_subst, sender_env) ::
+                 (recv_part, recv_cont_subst, recv_env) ::
+                 others
+               in
+               Some new_state
+           | None ->
+               (* No matching receiver yet, try next *)
+               find_choice ((sender_part, PInt (receiver_role, label, sender_cont, Loc.dummy), sender_env) :: acc) rest)
+      | (part, (PRec (v, body, _) as rec_proc), env) :: rest ->
+          (* Unfold recursion: replace v with the whole recursion in body *)
+          let unfolded = subst_var v rec_proc body in
+          find_choice acc ((part, unfolded, env) :: rest)
       | item :: rest -> find_choice (item :: acc) rest
+    
+    and find_external_choice expected_sender expected_receiver expected_label candidates =
+      (* Find a participant named expected_receiver with external choice offering expected_label *)
+      let rec search acc = function
+        | [] -> None
+        | (recv_part, PExt (sender_role, branches, _), env) :: rest ->
+            if recv_part = expected_receiver && sender_role = expected_sender then
+              (* Check if the label is offered *)
+              (match List.assoc_opt expected_label branches with
+               | Some cont -> Some (recv_part, cont, env, List.rev_append acc rest)
+               | None -> 
+                   raise (RuntimeError (InvalidChoice 
+                     (Printf.sprintf "Label '%s' not offered by %s" expected_label recv_part))))
+            else
+              search ((recv_part, PExt (sender_role, branches, Loc.dummy), env) :: acc) rest
+        | (part, (PRec (v, body, _) as rec_proc), env) :: rest ->
+            (* Unfold recursion: replace v with the whole recursion in body *)
+            let unfolded = subst_var v rec_proc body in
+            search acc ((part, unfolded, env) :: rest)
+        | item :: rest -> search (item :: acc) rest
+      in
+      search [] candidates
     in
     find_choice [] state
   
@@ -309,8 +376,10 @@ let execute_program (prog : string program) =
                (* No matching receiver yet, try next *)
                find_comm ((sender_part, PSend (receiver_role, expr, sender_cont, Loc.dummy), sender_env) :: acc) rest)
       
-      | (part, PRec (_v, body, _), env) :: rest ->
-          find_comm acc ((part, body, env) :: rest)
+      | (part, (PRec (v, body, _) as rec_proc), env) :: rest ->
+          (* Unfold recursion: replace v with the whole recursion in body *)
+          let unfolded = subst_var v rec_proc body in
+          find_comm acc ((part, unfolded, env) :: rest)
       
       | item :: rest -> find_comm (item :: acc) rest
     
@@ -323,8 +392,10 @@ let execute_program (prog : string program) =
               Some (recv_part, var, cont, env, List.rev_append acc rest)
             else
               search ((recv_part, PRecv (sender_role, var, cont, Loc.dummy), env) :: acc) rest
-        | (part, PRec (_v, body, _), env) :: rest ->
-            search acc ((part, body, env) :: rest)
+        | (part, (PRec (v, body, _) as rec_proc), env) :: rest ->
+            (* Unfold recursion: replace v with the whole recursion in body *)
+            let unfolded = subst_var v rec_proc body in
+            search acc ((part, unfolded, env) :: rest)
         | item :: rest -> search (item :: acc) rest
       in
       search [] candidates
