@@ -1,10 +1,10 @@
 # Session Type Checker (STC)
 
-A clean, modular parser for session types with global types, local types, and processes.
+An implementation of Multiparty Session Types including global types, local types, and processes.
 
 ## Architecture
 
-The codebase is organized into clean, focused modules:
+The tool is written in OCaml and is broadly organised as follows:
 
 ### Core Modules
 - **`ast.ml`** - Abstract syntax tree definitions for session types
@@ -22,15 +22,8 @@ The codebase is organized into clean, focused modules:
 - **`balanced.ml`** - **Balancedness checking** for global types (ensures all branches involve same participants)
 - **`interpreter.ml`** - Runtime execution with random choice and error handling
 
-### Applications
+### Application
 - **`main.ml`** - Command-line interface for parsing
-- **`test/`** - Test suite directory (all using Alcotest)
-  - **`test_parser.ml`** - Parser tests (40 tests)
-  - **`test_wellformed.ml`** - Well-formedness tests (43 tests)
-  - **`test_interpreter.ml`** - Interpreter tests (11 tests)
-  - **`test_check.ml`** - Type checker tests (48 tests, including variable tracking and recursion)
-  - **`test_subtype.ml`** - Subtyping tests (38 tests, covering coinductive semantics)
-  - **`test_balanced.ml`** - Balancedness tests (12 tests)
 
 ## Building
 
@@ -133,20 +126,6 @@ Step 5:
 Total steps: 5
 ```
 
-## Testing
-
-Run the test suite (using Alcotest):
-
-```bash
-dune test
-```
-
-This runs 136 tests total:
-- **Parser tests** (40 tests) - Global types, local types, processes, and expressions
-- **Well-formedness tests** (43 tests) - Structural validation checks
-- **Interpreter tests** (11 tests) - Runtime execution and error handling
-- **Type checker tests** (42 tests) - Complete type checking with variable tracking
-
 ## Command-Line Interface
 
 The main executable provides a unified CLI for working with session type programs:
@@ -168,7 +147,7 @@ dune exec ./main.exe -- --check-only calculator.stc
 - `-c, --check-only` - Only parse and check well-formedness (skip execution)
 - `-h, --help` - Show help message
 
-**Legacy Options** (for individual type parsing):
+**Other Options** (for individual type parsing):
 - `-g, --global` - Parse as global type
 - `-l, --local` - Parse as local type  
 - `-p, --process` - Parse as process
@@ -233,88 +212,12 @@ Type annotations are currently:
 
 This provides self-documentation and lays the groundwork for future type checking.
 
-## Additional Features
-
-### Non-Deterministic Choice
-
-The `nondet` operator allows non-deterministic choice in expressions:
-
-```ocaml
-(* Process that sends either 10 or 20, chosen at runtime *)
-let sender = Parse.process_from_string "receiver![10 nondet 20].0"
-
-(* This will randomly evaluate to either 10 or 20 *)
-```
-
-Example program (`examples/nondeterministic.stc`):
-```
-// Non-deterministic choice example
-Sender = receiver![10 nondet 20].0  // Randomly choose 10 or 20
-Receiver = sender?(x).0
-
-main = sender::Sender | receiver::Receiver
-```
-
-The choice is made at runtime when the expression is evaluated.
-
-### Comments
-
-Program files support C++-style line comments:
-```
-// Single line comment
-Process = role![value].0  // Inline comment
-```
-
-Comments start with `//` and continue to the end of the line.
-
 ## Examples
 
 Run interactive examples:
 
 ```bash
 dune exec ./example.exe
-```
-
-## Usage
-
-### Parsing
-
-The `Parse` module provides a clean API with proper error handling:
-
-```ocaml
-open Stc
-
-(* Parse from string *)
-let global = Parse.global_from_string "p -> q:[int]; end"
-let local = Parse.local_from_string "p?[bool]; end"
-let process = Parse.process_from_string "p![42].0"
-
-(* Parse from file *)
-let global = Parse.global_from_file "protocol.global"
-
-(* Error handling *)
-try
-  let result = Parse.global_from_string input in
-  (* use result *)
-with
-| Parse.ParseError err ->
-    Printf.eprintf "%s\n" (Parse.string_of_error err)
-```
-
-### Pretty Printing
-
-The `Pretty` module provides formatters for all AST types:
-
-```ocaml
-open Stc
-
-let global = Parse.global_from_string "rec X.end"
-
-(* Print to stdout *)
-Format.printf "%a@\n" Pretty.pp_global global
-
-(* Convert to string *)
-let str = Pretty.string_of_global global
 ```
 
 ## Syntax Reference
@@ -430,77 +333,4 @@ let client = Parse.process_from_string
 (* Pretty print them *)
 Format.printf "%a@\n" Pretty.pp_process server;
 Format.printf "%a@\n" Pretty.pp_process client
-```
-
-## Module Interface
-
-### Parse Module
-
-```ocaml
-type error = {
-  message : string;
-  line : int;
-  column : int;
-  position : int;
-}
-
-exception ParseError of error
-
-val string_of_error : error -> string
-val global_from_string : string -> string Ast.global
-val local_from_string : string -> string Ast.local
-val process_from_string : string -> string Ast.processes
-val global_from_file : string -> string Ast.global
-val local_from_file : string -> string Ast.local
-val process_from_file : string -> string Ast.processes
-```
-
-### Pretty Module
-
-```ocaml
-val pp_global : Format.formatter -> string Ast.global -> unit
-val pp_local : Format.formatter -> string Ast.local -> unit
-val pp_process : Format.formatter -> string Ast.processes -> unit
-val pp_expr : Format.formatter -> string Ast.expr -> unit
-val string_of_global : string Ast.global -> string
-val string_of_local : string Ast.local -> string
-val string_of_process : string Ast.processes -> string
-val string_of_expr : string Ast.expr -> string
-```
-
-## Development
-
-### Clean build artifacts:
-```bash
-dune clean
-```
-
-### Run tests with verbose output:
-```bash
-dune test --verbose
-```
-
-### Run specific test suite:
-```bash
-# Run all parser tests only
-dune exec ./test/test_parser.exe
-
-# Run all well-formedness tests only
-dune exec ./test/test_wellformed.exe
-
-# Run all interpreter tests only
-dune exec ./test/test_interpreter.exe
-
-# Run a specific test within a suite
-dune exec ./test/test_parser.exe -- test "processes" "send integer"
-```
-
-### Build documentation:
-```bash
-dune build @doc
-```
-
-### Continuous testing:
-```bash
-dune test --watch
 ```
