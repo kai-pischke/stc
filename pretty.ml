@@ -2,6 +2,15 @@
 
 open Ast
 
+(* Pretty print sorts (expression types) *)
+let pp_sort fmt = function
+  | SInt -> Format.fprintf fmt "Int"
+  | SBool -> Format.fprintf fmt "Bool"
+
+let string_of_sort = function
+  | SInt -> "Int"
+  | SBool -> "Bool"
+
 (* Pretty print a list of branches with a separator *)
 let rec pp_branches pp_elem fmt = function
   | [] -> ()

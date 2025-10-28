@@ -41,6 +41,25 @@ let process_program filename ~check_only =
     Wellformed.check_program prog;
     Printf.printf "✓ Well-formedness check passed\n\n";
     
+    (* Type check annotated processes *)
+    Printf.printf "Type checking annotated processes...\n";
+    let type_checked = ref 0 in
+    List.iter (fun def ->
+      match def.Ast.type_annotation with
+      | Some typ ->
+          Printf.printf "  Checking %s :: %s\n" 
+            def.Ast.name 
+            (Pretty.string_of_local typ);
+          Check.check_process def.Ast.body typ;
+          incr type_checked
+      | None -> ()
+    ) prog.Ast.definitions;
+    if !type_checked = 0 then
+      Printf.printf "  (no type annotations found)\n"
+    else
+      Printf.printf "✓ All %d annotated process(es) passed type checking\n" !type_checked;
+    Printf.printf "\n";
+    
     (* Execute if requested *)
     if not check_only then (
       Printf.printf "Executing program...\n";
@@ -55,6 +74,9 @@ let process_program filename ~check_only =
       exit 1
   | Wellformed.IllFormed err ->
       Printf.eprintf "\n✗ Well-formedness Error: %s\n" (Wellformed.string_of_error err);
+      exit 1
+  | Check.TypeError err ->
+      Printf.eprintf "\n✗ Type Error: %s\n" (Check.string_of_error err);
       exit 1
   | Interpreter.RuntimeError err ->
       Printf.eprintf "\n✗ Runtime Error: %s\n" (Interpreter.string_of_error err);

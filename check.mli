@@ -24,19 +24,19 @@ exception TypeError of error
 (** Convert error to human-readable string *)
 val string_of_error : error -> string
 
-(** Infer the base type of an expression
+(** Infer the sort (type) of an expression
     
-    Returns "Int" for integer expressions and "Bool" for boolean expressions.
+    Returns SInt for integer expressions and SBool for boolean expressions.
     Variables are looked up in the type environment.
     
     Note: This version uses an empty type environment. For checking with
     a specific environment, use the internal functions.
     
     @param e The expression to infer the type of
-    @return The base type as a string ("Int" or "Bool")
+    @return The sort (SInt or SBool)
     @raise TypeError if expression contains free variables
 *)
-val infer_expr : 'v Ast.expr -> string
+val infer_expr : 'v Ast.expr -> Ast.sort
 
 (** Check if an expression has a given base type
     
@@ -46,7 +46,7 @@ val infer_expr : 'v Ast.expr -> string
     @param expected The expected base type ("Int" or "Bool")
     @raise TypeError if the types don't match
 *)
-val check_expr : 'v Ast.expr -> string -> unit
+val check_expr : 'v Ast.expr -> Ast.base -> unit
 
 (** Check if a process conforms to a local session type
     

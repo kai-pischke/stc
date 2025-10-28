@@ -17,6 +17,9 @@ The codebase is organized into clean, focused modules:
 - **`parse.ml`** - Parsing with comprehensive error handling
 - **`wellformed.ml`** - Well-formedness checking (pre-type-checking validation)
 - **`check.ml`** - **Complete type checking** with variable tracking (syntax-directed typing rules)
+- **`subtype.ml`** - Subtyping for local types (Gay & Hole 2005 coinductive algorithm)
+- **`utils.ml`** - Shared utility functions (unfolding, De Bruijn conversion)
+- **`balanced.ml`** - **Balancedness checking** for global types (ensures all branches involve same participants)
 - **`interpreter.ml`** - Runtime execution with random choice and error handling
 
 ### Applications
@@ -25,7 +28,9 @@ The codebase is organized into clean, focused modules:
   - **`test_parser.ml`** - Parser tests (40 tests)
   - **`test_wellformed.ml`** - Well-formedness tests (43 tests)
   - **`test_interpreter.ml`** - Interpreter tests (11 tests)
-  - **`test_check.ml`** - Type checker tests (42 tests, including 7 variable tracking tests)
+  - **`test_check.ml`** - Type checker tests (48 tests, including variable tracking and recursion)
+  - **`test_subtype.ml`** - Subtyping tests (38 tests, covering coinductive semantics)
+  - **`test_balanced.ml`** - Balancedness tests (12 tests)
 
 ## Building
 

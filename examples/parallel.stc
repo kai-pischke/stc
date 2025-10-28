@@ -1,0 +1,6 @@
+Pa = rec X.c?{tick: X, tock: 0} 
+Pb = rec X.d?{tick: X, tock: 0}
+P
+Pd = rec X
+
+main = client::Client | server::Server

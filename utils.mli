@@ -41,3 +41,12 @@ val get_process_var_name : string Ast.processes -> string option
 (** Get the recursion variable and body from a recursive process *)
 val get_rec_process_parts : string Ast.processes -> (string * string Ast.processes) option
 
+(** Convert a local type from named variables to De Bruijn indices *)
+val to_debruijn : string Ast.local -> int Ast.local
+
+(** Convert a local type from De Bruijn indices back to named variables *)
+val from_debruijn : int Ast.local -> string Ast.local
+
+(** Unfold a De Bruijn recursive type once *)
+val unfold_debruijn_once : int Ast.local -> int Ast.local
+

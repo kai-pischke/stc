@@ -5,38 +5,44 @@ open Stc
 (** Helper to create a dummy location *)
 let dummy = Loc.dummy
 
+(** Testable type for sorts *)
+let sort_testable = 
+  let pp fmt s = Format.fprintf fmt "%s" (Pretty.string_of_sort s) in
+  let equal s1 s2 = s1 = s2 in
+  Alcotest.testable pp equal
+
 (** Test expression type inference *)
 let test_infer_expr () =
   let open Alcotest in
   [
     test_case "integer literal" `Quick (fun () ->
       let e = Ast.EInt (42, dummy) in
-      check string "infer int" "Int" (Check.infer_expr e)
+      check sort_testable "infer int" Ast.SInt (Check.infer_expr e)
     );
     
     test_case "boolean literal true" `Quick (fun () ->
       let e = Ast.ETrue dummy in
-      check string "infer bool" "Bool" (Check.infer_expr e)
+      check sort_testable "infer bool" Ast.SBool (Check.infer_expr e)
     );
     
     test_case "boolean literal false" `Quick (fun () ->
       let e = Ast.EFalse dummy in
-      check string "infer bool" "Bool" (Check.infer_expr e)
+      check sort_testable "infer bool" Ast.SBool (Check.infer_expr e)
     );
     
     test_case "addition" `Quick (fun () ->
       let e = Ast.EPlus (Ast.EInt (1, dummy), Ast.EInt (2, dummy), dummy) in
-      check string "infer int" "Int" (Check.infer_expr e)
+      check sort_testable "infer int" Ast.SInt (Check.infer_expr e)
     );
     
     test_case "comparison" `Quick (fun () ->
       let e = Ast.ELt (Ast.EInt (1, dummy), Ast.EInt (2, dummy), dummy) in
-      check string "infer bool" "Bool" (Check.infer_expr e)
+      check sort_testable "infer bool" Ast.SBool (Check.infer_expr e)
     );
     
     test_case "logical and" `Quick (fun () ->
       let e = Ast.EAnd (Ast.ETrue dummy, Ast.EFalse dummy, dummy) in
-      check string "infer bool" "Bool" (Check.infer_expr e)
+      check sort_testable "infer bool" Ast.SBool (Check.infer_expr e)
     );
   ]
 
@@ -381,13 +387,19 @@ let test_recursion_advanced () =
       check unit "passes" () (Check.check_process proc typ)
     );
     
-    test_case "ISSUE: recursive process ending early" `Quick (fun () ->
+    test_case "recursive process ending early (correctly fails with subtyping)" `Quick (fun () ->
       (* rec X.p![5].0 vs rec T.p![Int];T - process ends but type loops
-         This should arguably fail *)
+         With coinductive subtyping, this correctly fails because:
+         - X is bound to rec T.p![Int];T
+         - We reach 0 which needs end <= rec T.p![Int];T
+         - But end is NOT a subtype of an infinite loop type *)
       let proc = Parse.process_from_string "rec X.p![5].0" in
       let typ = Parse.local_from_string "rec T.p![Int];T" in
-      (* Currently passes because we don't unfold T *)
-      check unit "currently passes (questionable)" () (Check.check_process proc typ)
+      let result = try
+        Check.check_process proc typ;
+        false  (* Should not reach here *)
+      with Check.TypeError _ -> true in
+      check bool "correctly fails with type error" true result
     );
     
     test_case "recursive with choice" `Quick (fun () ->

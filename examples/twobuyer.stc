@@ -1,0 +1,34 @@
+// A’s behaviour
+Pa = rec X.
+  c?(price).
+  if (true ⊕ false) then
+    b![done]. c![done]. 0
+  else if (price <= 10) then
+    b!{buy: X}
+  else
+    b![price / 2].
+    b!{split:
+      b?{ yes: c!{buy: X},
+          no:  c!{repeat: X} }}
+
+// B’s behaviour
+Pb = rec X.
+  a?{
+    split:
+      a?(cost).
+      if (cost <= 6) then a!{yes: X} else a!{no: X},
+    done: 0
+  }
+
+// C’s behaviour
+Pc = rec Y.
+  a![10 ⊕ 12 ⊕ 14].
+  rec Z.
+    a?{
+      buy: 0,
+      repeat: Y,
+      discount: a![2]. Z,
+      done: 0
+    }
+
+main = a::Pa | b::Pb | c::Pc

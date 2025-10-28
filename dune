@@ -1,6 +1,6 @@
 (library
  (name stc)
- (modules ast loc parser lexer pretty parse wellformed interpreter check utils))
+ (modules ast loc parser lexer pretty parse wellformed interpreter check utils subtype balanced))
 
 (menhir
  (modules parser))

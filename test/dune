@@ -18,3 +18,12 @@
  (modules test_check)
  (libraries stc alcotest))
 
+(test
+ (name test_subtype)
+ (modules test_subtype)
+ (libraries stc alcotest))
+
+(test
+ (name test_balanced)
+ (modules test_balanced)
+ (libraries stc alcotest))

@@ -33,88 +33,101 @@ let string_of_error = function
   | FreeVariable var ->
       Printf.sprintf "Unbound variable '%s'" var
 
-(** Type environment mapping variables to base types *)
-module Env = struct
-  type t = (string * string) list
+(** Expression variable environment: maps variables to sorts *)
+module ExprEnv = struct
+  type t = (string * sort) list
   
   let empty : t = []
   
-  let add (var : string) (base_type : string) (env : t) : t =
-    (var, base_type) :: env
+  let add (var : string) (s : sort) (env : t) : t =
+    (var, s) :: env
   
-  let lookup (var : string) (env : t) : string option =
+  let lookup (var : string) (env : t) : sort option =
     List.assoc_opt var env
 end
 
-(** Simple set for tracking bound process/type variables *)
-module VarSet = struct
-  type t = string list
-  let empty = []
-  let add x s = x :: s
-  let mem x s = List.mem x s
+(** Process variable environment: maps process variables to local types *)
+module ProcEnv = struct
+  type t = (string * string local) list
+  
+  let empty : t = []
+  
+  let add (var : string) (typ : string local) (env : t) : t =
+    (var, typ) :: env
+  
+  let lookup (var : string) (env : t) : string local option =
+    List.assoc_opt var env
 end
 
-(** Infer the base type of an expression with respect to a type environment
+(** Infer the sort of an expression with respect to a type environment
     
-    Γ ⊢ e : T
+    Γ ⊢ e : S
     
-    Returns the base type ("Int" or "Bool") of the expression.
+    Returns the sort (SInt or SBool) of the expression.
 *)
-let rec infer_expr (env : Env.t) (e : 'v expr) : string =
+let rec infer_expr (env : ExprEnv.t) (e : 'v expr) : sort =
   match e with
-  | EInt _ -> "Int"
-  | ETrue _ | EFalse _ -> "Bool"
+  | EInt _ -> SInt
+  | ETrue _ | EFalse _ -> SBool
   | EVar (x, _) ->
-      begin match Env.lookup x env with
-      | Some t -> t
+      begin match ExprEnv.lookup x env with
+      | Some s -> s
       | None -> raise (TypeError (FreeVariable x))
       end
   | EPlus (e1, e2, _) | EMinus (e1, e2, _) | ETimes (e1, e2, _) 
   | EDiv (e1, e2, _) | EMod (e1, e2, _) ->
       let t1 = infer_expr env e1 in
       let t2 = infer_expr env e2 in
-      if t1 <> "Int" then
-        raise (TypeError (TypeMismatch ("Int", t1)));
-      if t2 <> "Int" then
-        raise (TypeError (TypeMismatch ("Int", t2)));
-      "Int"
+      if t1 <> SInt then
+        raise (TypeError (TypeMismatch ("Int", Pretty.string_of_sort t1)));
+      if t2 <> SInt then
+        raise (TypeError (TypeMismatch ("Int", Pretty.string_of_sort t2)));
+      SInt
   | ELt (e1, e2, _) | EGt (e1, e2, _) | ELe (e1, e2, _) 
   | EGe (e1, e2, _) | EEq (e1, e2, _) ->
       let t1 = infer_expr env e1 in
       let t2 = infer_expr env e2 in
-      if t1 <> "Int" then
-        raise (TypeError (TypeMismatch ("Int", t1)));
-      if t2 <> "Int" then
-        raise (TypeError (TypeMismatch ("Int", t2)));
-      "Bool"
+      if t1 <> SInt then
+        raise (TypeError (TypeMismatch ("Int", Pretty.string_of_sort t1)));
+      if t2 <> SInt then
+        raise (TypeError (TypeMismatch ("Int", Pretty.string_of_sort t2)));
+      SBool
   | EAnd (e1, e2, _) | EOr (e1, e2, _) ->
       let t1 = infer_expr env e1 in
       let t2 = infer_expr env e2 in
-      if t1 <> "Bool" then
-        raise (TypeError (TypeMismatch ("Bool", t1)));
-      if t2 <> "Bool" then
-        raise (TypeError (TypeMismatch ("Bool", t2)));
-      "Bool"
+      if t1 <> SBool then
+        raise (TypeError (TypeMismatch ("Bool", Pretty.string_of_sort t1)));
+      if t2 <> SBool then
+        raise (TypeError (TypeMismatch ("Bool", Pretty.string_of_sort t2)));
+      SBool
   | ENot (e, _) ->
       let t = infer_expr env e in
-      if t <> "Bool" then
-        raise (TypeError (TypeMismatch ("Bool", t)));
-      "Bool"
+      if t <> SBool then
+        raise (TypeError (TypeMismatch ("Bool", Pretty.string_of_sort t)));
+      SBool
   | EChoice (e1, e2, _) ->
       let t1 = infer_expr env e1 in
       let t2 = infer_expr env e2 in
       if t1 <> t2 then
-        raise (TypeError (TypeMismatch (t1, t2)));
+        raise (TypeError (TypeMismatch (Pretty.string_of_sort t1, Pretty.string_of_sort t2)));
       t1
 
 (** Check that an expression has the expected base type
     
-    Γ ⊢ e : T
+    Γ ⊢ e : S
+    
+    The expected type is given as a base string ("Int" or "Bool") to match
+    the AST representation in local types.
 *)
-let check_expr (env : Env.t) (e : 'v expr) (expected : string) : unit =
+let check_expr (env : ExprEnv.t) (e : 'v expr) (expected : base) : unit =
+  let expected_sort = match expected with
+    | "Int" -> SInt
+    | "Bool" -> SBool
+    | _ -> raise (TypeError (TypeMismatch (expected, "unknown base type")))
+  in
   let actual = infer_expr env e in
-  if actual <> expected then
-    raise (TypeError (TypeMismatch (expected, actual)))
+  if actual <> expected_sort then
+    raise (TypeError (TypeMismatch (expected, Pretty.string_of_sort actual)))
 
 (** Main type checking function
     
@@ -123,48 +136,54 @@ let check_expr (env : Env.t) (e : 'v expr) (expected : string) : unit =
     Γ; Δ ⊢ P ▷ T
     
     where:
-      Γ = type environment (variable types)
-      Δ = bound process/type variables
+      Γ = expression variable environment (string -> sort)
+      Δ = process variable environment (string -> local)
       P = process
       T = local session type
 *)
 let rec check 
-    (env : Env.t)           (* Type environment *)
+    (expr_env : ExprEnv.t)
+    (proc_env : ProcEnv.t)
     (proc : string processes) 
     (typ : string local)
-    (proc_vars : VarSet.t)  (* Bound process variables *)
-    (type_vars : VarSet.t)  (* Bound type variables *)
     : unit =
   match proc, typ with
-  
+  (* Γ; Δ ⊢ P ▷ unfold_local T
+     ─────────────────────
+     Γ; Δ ⊢ P ▷ T
+  *)
+  | _, LRec (_y, _t, _) -> 
+    let typ' = Utils.unfold_local_once typ in
+    check expr_env proc_env proc typ'
+
+  (* Γ; Δ, X : T ⊢ P ▷ T
+     ─────────────────────────
+     Γ; Δ ⊢ rec X . P ▷ T
+  *)
+  | PRec (x, p, _), _ ->
+    let proc_env' = ProcEnv.add x typ proc_env in
+    check expr_env proc_env' p typ 
+
   (* ─────────────────────
      Γ; Δ ⊢ 0 ▷ end
   *)
   | PInact _, LEnd _ -> ()
   
-  (* X ∈ Δ_proc
-     ─────────────────────
+  (* X ∈ Δ_proc    Δ(X) <= T
+     ─────────────────────────
      Γ; Δ ⊢ X ▷ T
   *)
   | PVar (x, _), _ ->
-      if not (VarSet.mem x proc_vars) then
-        raise (TypeError (FreeVariable x))
-  
-  (* Y ∈ Δ_type
-     ─────────────────────
-     Γ; Δ ⊢ P ▷ Y
-  *)
-  | _, LVar (y, _) ->
-      if not (VarSet.mem y type_vars) then
-        raise (TypeError (FreeVariable y))
-  
-  (* Γ; Δ, X ⊢ P ▷ T
-     ─────────────────────────
-     Γ; Δ ⊢ rec X.P ▷ rec Y.T
-  *)
-  | PRec (x, p, _), LRec (y, t, _) ->
-      check env p t (VarSet.add x proc_vars) (VarSet.add y type_vars)
-  
+    begin match ProcEnv.lookup x proc_env with
+    | Some expected_typ -> 
+      (* Check that the expected type is a subtype of the required type *)
+      if not (Subtype.is_subtype expected_typ typ) then
+        raise (TypeError (TypeMismatch (
+          Pretty.string_of_local typ,
+          Printf.sprintf "%s (has type %s)" x (Pretty.string_of_local expected_typ))))
+    | None -> raise (TypeError (FreeVariable x))
+    end
+    
   (* Γ ⊢ e : B    Γ; Δ ⊢ P ▷ T
      ───────────────────────────────
      Γ; Δ ⊢ p!e.P ▷ p![B]; T
@@ -174,8 +193,8 @@ let rec check
         raise (TypeError (TypeMismatch (
           Printf.sprintf "send to %s" role_t,
           Printf.sprintf "send to %s" role)));
-      check_expr env expr base_t;
-      check env cont cont_t proc_vars type_vars
+      check_expr expr_env expr base_t;
+      check expr_env proc_env cont cont_t
   
   (* Γ, x:B; Δ ⊢ P ▷ T
      ───────────────────────────────
@@ -186,8 +205,14 @@ let rec check
         raise (TypeError (TypeMismatch (
           Printf.sprintf "receive from %s" role_t,
           Printf.sprintf "receive from %s" role)));
-      let env' = Env.add var base_t env in
-      check env' cont cont_t proc_vars type_vars
+      (* Convert base type string to sort *)
+      let sort = match base_t with
+        | "Int" -> SInt
+        | "Bool" -> SBool
+        | _ -> raise (TypeError (TypeMismatch (base_t, "unknown base type")))
+      in
+      let expr_env' = ExprEnv.add var sort expr_env in
+      check expr_env' proc_env cont cont_t
   
   (* l ∈ {l₁,...,lₙ}    Γ; Δ ⊢ P ▷ Tₗ
      ────────────────────────────────────────────
@@ -199,7 +224,7 @@ let rec check
           Printf.sprintf "select label to %s" role_t,
           Printf.sprintf "select label to %s" role)));
       begin match List.assoc_opt label branches_t with
-      | Some cont_t -> check env cont cont_t proc_vars type_vars
+      | Some cont_t -> check expr_env proc_env cont cont_t
       | None -> 
           let available = String.concat ", " (List.map fst branches_t) in
           raise (TypeError (TypeMismatch (
@@ -233,7 +258,7 @@ let rec check
       (* Check each branch *)
       List.iter (fun (label, proc_cont) ->
         let type_cont = List.assoc label branches_t in
-        check env proc_cont type_cont proc_vars type_vars
+        check expr_env proc_env proc_cont type_cont
       ) branches_p
   
   (* Γ ⊢ e : Bool    Γ; Δ ⊢ P₁ ▷ T    Γ; Δ ⊢ P₂ ▷ T
@@ -241,9 +266,9 @@ let rec check
      Γ; Δ ⊢ if e then P₁ else P₂ ▷ T
   *)
   | PIfThenElse (cond, then_p, else_p, _), _ ->
-      check_expr env cond "Bool";
-      check env then_p typ proc_vars type_vars;
-      check env else_p typ proc_vars type_vars
+      check_expr expr_env cond "Bool";
+      check expr_env proc_env then_p typ;
+      check expr_env proc_env else_p typ
   
   (* Structural mismatches *)
   | PInact _, _ ->
@@ -275,21 +300,16 @@ let rec check
       raise (TypeError (TypeMismatch (
         Pretty.string_of_local typ,
         Printf.sprintf "offer choice to %s" role)))
-  
-  | PRec (x, _, _), _ ->
-      raise (TypeError (TypeMismatch (
-        Pretty.string_of_local typ,
-        Printf.sprintf "recursive process (rec %s)" x)))
 
 (** Public API: Check if a process conforms to a local type
     
     ∅; ∅ ⊢ P ▷ T
 *)
 let check_process (proc : string processes) (typ : string local) : unit =
-  check Env.empty proc typ VarSet.empty VarSet.empty
+  check ExprEnv.empty ProcEnv.empty proc typ
 
 (** Expression type inference (exposed for compatibility) *)
-let infer_expr e = infer_expr Env.empty e
+let infer_expr e = infer_expr ExprEnv.empty e
 
 (** Expression type checking (exposed for compatibility) *)
-let check_expr e expected = check_expr Env.empty e expected
+let check_expr e expected = check_expr ExprEnv.empty e expected

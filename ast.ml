@@ -9,6 +9,11 @@ type role  = string (* p, q, ... *)
 type label = string (* l1, l2, ...*)
 type base  = string (* int, char, ...*)
 
+(* Expression types / sorts *)
+type sort =
+  | SInt   (* integer type *)
+  | SBool  (* boolean type *)
+
 (* Global types G1, G2, ...*)
 type 'v global =
   | GEnd                                 of t

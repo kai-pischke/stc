@@ -2,6 +2,12 @@
 
 open Ast
 
+(** Pretty print sorts (expression types) *)
+val pp_sort : Format.formatter -> sort -> unit
+
+(** Convert sort to string *)
+val string_of_sort : sort -> string
+
 (** Pretty print global types *)
 val pp_global : Format.formatter -> string global -> unit
 
