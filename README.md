@@ -504,23 +504,3 @@ dune build @doc
 ```bash
 dune test --watch
 ```
-
-## Additional Documentation
-
-- **[TYPE_CHECKING_COMPLETE.md](./TYPE_CHECKING_COMPLETE.md)** - Complete type checking implementation with variable tracking
-- **[TYPE_CHECKING.md](./TYPE_CHECKING.md)** - Type checking module API documentation
-- **[SIMPLIFICATIONS.md](./SIMPLIFICATIONS.md)** - Design decisions and simplifications
-- **[WELLFORMEDNESS.md](./WELLFORMEDNESS.md)** - Detailed documentation of well-formedness checks
-- **[PROGRAMS.md](./PROGRAMS.md)** - Documentation for program file parsing
-- **[INTERPRETER.md](./INTERPRETER.md)** - Documentation for the runtime interpreter
-
-## Next Steps
-
-This parser provides a solid foundation for:
-- Type checking session protocols
-- Projection from global to local types
-- Session type equivalence checking
-- Deadlock detection
-- Protocol verification
-
-See `example.ml` for more usage patterns.
