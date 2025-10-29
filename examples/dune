@@ -1,9 +1,0 @@
-(executable
- (name type_check_example)
- (modules type_check_example)
- (libraries stc))
-
-(executable
- (name balancedness_examples)
- (modules balancedness_examples)
- (libraries stc))
