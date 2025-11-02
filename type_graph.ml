@@ -1,5 +1,8 @@
 open Ast
 
+(* String map for environment *)
+module StringMap = Map.Make(String)
+
 (** Global Type Graphs *)
 
 (** Node labels for global type graphs *)
@@ -124,11 +127,7 @@ end
 
 (** Conversion from AST to Graph *)
 
-(** Convert a global type to a graph
-    
-    @param g The global type to convert
-    @return (graph, entry_node) where entry_node is the starting node
-*)
+(** Convert a global type to a graph *)
 let global_to_graph (g : string global) : GlobalGraph.t * global_node =
   let graph = GlobalGraph.create () in
   let node_counter = ref 0 in
@@ -139,63 +138,73 @@ let global_to_graph (g : string global) : GlobalGraph.t * global_node =
     id
   in
   
-  (* Track variable bindings: map from variable name to list of node IDs where it's used *)
-  let var_uses : (string, int list) Hashtbl.t = Hashtbl.create 10 in
-  
-  let rec convert (g : string global) : global_node =
+  (* Recursive conversion with environment and variable queue
+     - env: Maps variable names to their binding nodes
+     - queue: Variables from rec binders waiting to be bound
+     - g: The global type to convert
+     Returns the node representing this type *)
+  let rec convert (env : global_node StringMap.t) (queue : string list) (g : string global) 
+      : global_node =
     match g with
-    | GEnd _ ->
-        let node = GlobalGraph.make_node (new_node_id ()) GEnd [] in
-        GlobalGraph.add_vertex graph node;
-        node
+    | GRec (x, body, _) ->
+        (* Add variable to queue and continue - rec doesn't create a node *)
+        convert env (x :: queue) body
     
     | GVar (x, _) ->
-        (* Variable reference - will be connected to its binding point *)
-        let node_id = new_node_id () in
-        (match Hashtbl.find_opt var_uses x with
-         | Some uses -> Hashtbl.replace var_uses x (node_id :: uses)
-         | None -> Hashtbl.add var_uses x [node_id]);
-        (* Create a placeholder that should be back-edge *)
-        let node = GlobalGraph.make_node node_id GEnd [x] in
+        (* Look up the binding site in the environment *)
+        (match StringMap.find_opt x env with
+         | Some node -> node
+         | None -> 
+             (* This shouldn't happen in well-formed types *)
+             failwith (Printf.sprintf "Unbound variable %s in global type" x))
+    
+    | GEnd _ ->
+        (* Create end node with current queue *)
+        let node = GlobalGraph.make_node (new_node_id ()) GEnd queue in
         GlobalGraph.add_vertex graph node;
+        (* Bind all queued variables to this node *)
+        let _env' = List.fold_left (fun e var -> StringMap.add var node e) env queue in
         node
     
-    | GRec (x, body, _) ->
-        let body_node = convert body in
-        (* Mark this node as binding x *)
-        let marked_node = { body_node with gnode_vars = x :: body_node.gnode_vars } in
-        (* Update the node in the graph *)
-        GlobalGraph.remove_vertex graph body_node;
-        GlobalGraph.add_vertex graph marked_node;
-        marked_node
-    
     | GMsg (p, q, base, cont, _) ->
-        let node = GlobalGraph.make_node (new_node_id ()) (GMsgNode (p, q)) [] in
+        (* Create message node with current queue *)
+        let node = GlobalGraph.make_node (new_node_id ()) (GMsgNode (p, q)) queue in
         GlobalGraph.add_vertex graph node;
-        let cont_node = convert cont in
+        (* Bind all queued variables to this node *)
+        let env' = List.fold_left (fun e var -> StringMap.add var node e) env queue in
+        (* Continue with empty queue and updated environment *)
+        let cont_node = convert env' [] cont in
         GlobalGraph.add_edge_e graph (GlobalGraph.E.create node (GBase base) cont_node);
         node
     
     | GBra (p, q, branches, _) ->
-        let node = GlobalGraph.make_node (new_node_id ()) (GBraNode (p, q)) [] in
+        (* Create branch node with current queue *)
+        let node = GlobalGraph.make_node (new_node_id ()) (GBraNode (p, q)) queue in
         GlobalGraph.add_vertex graph node;
+        (* Bind all queued variables to this node *)
+        let env' = List.fold_left (fun e var -> StringMap.add var node e) env queue in
+        (* Process each branch with empty queue and updated environment *)
         List.iter (fun (label, branch_g) ->
-          let branch_node = convert branch_g in
+          let branch_node = convert env' [] branch_g in
           GlobalGraph.add_edge_e graph (GlobalGraph.E.create node (GLabel label) branch_node)
         ) branches;
         node
     
     | GPar (g1, g2, _) ->
-        let node = GlobalGraph.make_node (new_node_id ()) GParNode [] in
+        (* Create parallel node with current queue *)
+        let node = GlobalGraph.make_node (new_node_id ()) GParNode queue in
         GlobalGraph.add_vertex graph node;
-        let n1 = convert g1 in
-        let n2 = convert g2 in
+        (* Bind all queued variables to this node *)
+        let env' = List.fold_left (fun e var -> StringMap.add var node e) env queue in
+        (* Process both branches with empty queue and updated environment *)
+        let n1 = convert env' [] g1 in
+        let n2 = convert env' [] g2 in
         GlobalGraph.add_edge_e graph (GlobalGraph.E.create node GEpsilon n1);
         GlobalGraph.add_edge_e graph (GlobalGraph.E.create node GEpsilon n2);
         node
   in
   
-  let entry = convert g in
+  let entry = convert StringMap.empty [] g in
   (graph, entry)
 
 (** Convert a local type to a graph
@@ -213,66 +222,84 @@ let local_to_graph (t : string local) : LocalGraph.t * local_node =
     id
   in
   
-  (* Track variable bindings *)
-  let var_uses : (string, int list) Hashtbl.t = Hashtbl.create 10 in
-  
-  let rec convert (t : string local) : local_node =
+  (* Recursive conversion with environment and variable queue
+     - env: Maps variable names to their binding nodes
+     - queue: Variables from rec binders waiting to be bound
+     - t: The local type to convert
+     Returns the node representing this type *)
+  let rec convert (env : local_node StringMap.t) (queue : string list) (t : string local) 
+      : local_node =
     match t with
-    | LEnd _ ->
-        let node = LocalGraph.make_node (new_node_id ()) LEnd [] in
-        LocalGraph.add_vertex graph node;
-        node
+    | LRec (x, body, _) ->
+        (* Add variable to queue and continue - rec doesn't create a node *)
+        convert env (x :: queue) body
     
     | LVar (x, _) ->
-        let node_id = new_node_id () in
-        (match Hashtbl.find_opt var_uses x with
-         | Some uses -> Hashtbl.replace var_uses x (node_id :: uses)
-         | None -> Hashtbl.add var_uses x [node_id]);
-        let node = LocalGraph.make_node node_id LEnd [x] in
+        (* Look up the binding site in the environment *)
+        (match StringMap.find_opt x env with
+         | Some node -> node
+         | None -> 
+             (* This shouldn't happen in well-formed types *)
+             failwith (Printf.sprintf "Unbound variable %s in local type" x))
+    
+    | LEnd _ ->
+        (* Create end node with current queue *)
+        let node = LocalGraph.make_node (new_node_id ()) LEnd queue in
         LocalGraph.add_vertex graph node;
+        (* Bind all queued variables to this node *)
+        let _env' = List.fold_left (fun e var -> StringMap.add var node e) env queue in
         node
     
-    | LRec (x, body, _) ->
-        let body_node = convert body in
-        let marked_node = { body_node with lnode_vars = x :: body_node.lnode_vars } in
-        LocalGraph.remove_vertex graph body_node;
-        LocalGraph.add_vertex graph marked_node;
-        marked_node
-    
     | LSend (role, base, cont, _) ->
-        let node = LocalGraph.make_node (new_node_id ()) (LSendNode role) [] in
+        (* Create send node with current queue *)
+        let node = LocalGraph.make_node (new_node_id ()) (LSendNode role) queue in
         LocalGraph.add_vertex graph node;
-        let cont_node = convert cont in
+        (* Bind all queued variables to this node *)
+        let env' = List.fold_left (fun e var -> StringMap.add var node e) env queue in
+        (* Continue with empty queue and updated environment *)
+        let cont_node = convert env' [] cont in
         LocalGraph.add_edge_e graph (LocalGraph.E.create node (LBase base) cont_node);
         node
     
     | LRecv (role, base, cont, _) ->
-        let node = LocalGraph.make_node (new_node_id ()) (LRecvNode role) [] in
+        (* Create receive node with current queue *)
+        let node = LocalGraph.make_node (new_node_id ()) (LRecvNode role) queue in
         LocalGraph.add_vertex graph node;
-        let cont_node = convert cont in
+        (* Bind all queued variables to this node *)
+        let env' = List.fold_left (fun e var -> StringMap.add var node e) env queue in
+        (* Continue with empty queue and updated environment *)
+        let cont_node = convert env' [] cont in
         LocalGraph.add_edge_e graph (LocalGraph.E.create node (LBase base) cont_node);
         node
     
     | LInt (role, branches, _) ->
-        let node = LocalGraph.make_node (new_node_id ()) (LIntNode role) [] in
+        (* Create internal choice node with current queue *)
+        let node = LocalGraph.make_node (new_node_id ()) (LIntNode role) queue in
         LocalGraph.add_vertex graph node;
+        (* Bind all queued variables to this node *)
+        let env' = List.fold_left (fun e var -> StringMap.add var node e) env queue in
+        (* Process each branch with empty queue and updated environment *)
         List.iter (fun (label, branch_t) ->
-          let branch_node = convert branch_t in
+          let branch_node = convert env' [] branch_t in
           LocalGraph.add_edge_e graph (LocalGraph.E.create node (LLabel label) branch_node)
         ) branches;
         node
     
     | LExt (role, branches, _) ->
-        let node = LocalGraph.make_node (new_node_id ()) (LExtNode role) [] in
+        (* Create external choice node with current queue *)
+        let node = LocalGraph.make_node (new_node_id ()) (LExtNode role) queue in
         LocalGraph.add_vertex graph node;
+        (* Bind all queued variables to this node *)
+        let env' = List.fold_left (fun e var -> StringMap.add var node e) env queue in
+        (* Process each branch with empty queue and updated environment *)
         List.iter (fun (label, branch_t) ->
-          let branch_node = convert branch_t in
+          let branch_node = convert env' [] branch_t in
           LocalGraph.add_edge_e graph (LocalGraph.E.create node (LLabel label) branch_node)
         ) branches;
         node
   in
   
-  let entry = convert t in
+  let entry = convert StringMap.empty [] t in
   (graph, entry)
 
 (** {1 Conversion from Graph to AST} *)
