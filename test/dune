@@ -27,3 +27,8 @@
  (name test_balanced)
  (modules test_balanced)
  (libraries stc alcotest))
+
+(test
+ (name test_type_graph)
+ (modules test_type_graph)
+ (libraries stc alcotest))

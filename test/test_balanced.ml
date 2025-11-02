@@ -13,7 +13,8 @@ let test_balanced_simple () =
     ("l1", GMsg ("q", "p", "Int", GEnd loc, loc));
     ("l2", GMsg ("q", "p", "Int", GEnd loc, loc));
   ], loc) in
-  Alcotest.(check bool) "balanced simple" true (Balanced.is_balanced g)
+  let (is_bal, _) = Balanced.check_balanced g in
+  Alcotest.(check bool) "balanced simple" true is_bal
 
 (* Test 2: Unbalanced - different participants in branches *)
 let test_unbalanced_different_roles () =
@@ -24,7 +25,8 @@ let test_unbalanced_different_roles () =
     ("l1", GMsg ("q", "r", "Int", GEnd loc, loc));
     ("l2", GMsg ("q", "s", "Int", GEnd loc, loc));
   ], loc) in
-  Alcotest.(check bool) "unbalanced different roles" false (Balanced.is_balanced g)
+  let (is_bal, _) = Balanced.check_balanced g in
+  Alcotest.(check bool) "unbalanced different roles" false is_bal
 
 (* Test 3: Balanced - same roles in all branches *)
 let test_balanced_same_roles () =
@@ -33,7 +35,7 @@ let test_balanced_same_roles () =
     ("l1", GMsg ("q", "r", "Int", GEnd loc, loc));
     ("l2", GMsg ("q", "r", "Int", GEnd loc, loc));
   ], loc) in
-  Alcotest.(check bool) "balanced same roles" true (Balanced.is_balanced g)
+  Alcotest.(check bool) "balanced same roles" true (let (is_bal, _) = Balanced.check_balanced g in is_bal)
 
 (* Test 4: Nested branches - balanced *)
 let test_balanced_nested () =
@@ -53,7 +55,7 @@ let test_balanced_nested () =
     ("l1", inner1);
     ("l2", inner2);
   ], loc) in
-  Alcotest.(check bool) "balanced nested" true (Balanced.is_balanced g)
+  Alcotest.(check bool) "balanced nested" true (let (is_bal, _) = Balanced.check_balanced g in is_bal)
 
 (* Test 5: Nested branches - unbalanced inner *)
 let test_unbalanced_nested () =
@@ -73,7 +75,7 @@ let test_unbalanced_nested () =
     ("l1", inner1);
     ("l2", inner2);
   ], loc) in
-  Alcotest.(check bool) "unbalanced nested" false (Balanced.is_balanced g)
+  Alcotest.(check bool) "unbalanced nested" false (let (is_bal, _) = Balanced.check_balanced g in is_bal)
 
 (* Test 6: Parallel composition - balanced *)
 let test_balanced_parallel () =
@@ -81,7 +83,7 @@ let test_balanced_parallel () =
   let g1 = GMsg ("p", "q", "Int", GEnd loc, loc) in
   let g2 = GMsg ("r", "s", "Int", GEnd loc, loc) in
   let g = GPar (g1, g2, loc) in
-  Alcotest.(check bool) "balanced parallel" true (Balanced.is_balanced g)
+  Alcotest.(check bool) "balanced parallel" true (let (is_bal, _) = Balanced.check_balanced g in is_bal)
 
 (* Test 7: Recursion - balanced *)
 let test_balanced_recursion () =
@@ -91,7 +93,7 @@ let test_balanced_recursion () =
     ("l2", GEnd loc);
   ], loc) in
   let g = GRec ("T", body, loc) in
-  Alcotest.(check bool) "balanced recursion" true (Balanced.is_balanced g)
+  Alcotest.(check bool) "balanced recursion" true (let (is_bal, _) = Balanced.check_balanced g in is_bal)
 
 (* Test 8: Three branches - all have same participants *)
 let test_balanced_three_branches () =
@@ -101,7 +103,7 @@ let test_balanced_three_branches () =
     ("l2", GMsg ("q", "r", "Int", GEnd loc, loc));
     ("l3", GMsg ("q", "r", "Int", GEnd loc, loc));
   ], loc) in
-  Alcotest.(check bool) "balanced three branches" true (Balanced.is_balanced g)
+  Alcotest.(check bool) "balanced three branches" true (let (is_bal, _) = Balanced.check_balanced g in is_bal)
 
 (* Test 9: Three branches - one differs *)
 let test_unbalanced_three_branches () =
@@ -111,7 +113,7 @@ let test_unbalanced_three_branches () =
     ("l2", GMsg ("q", "r", "Int", GEnd loc, loc));
     ("l3", GMsg ("q", "s", "Int", GEnd loc, loc));
   ], loc) in
-  Alcotest.(check bool) "unbalanced three branches" false (Balanced.is_balanced g)
+  Alcotest.(check bool) "unbalanced three branches" false (let (is_bal, _) = Balanced.check_balanced g in is_bal)
 
 (* Test 10: Check detailed error message *)
 let test_error_message () =
@@ -137,7 +139,7 @@ let test_balanced_multiple_participants () =
     ("l1", branch1);
     ("l2", branch2);
   ], loc) in
-  Alcotest.(check bool) "balanced multiple participants" true (Balanced.is_balanced g)
+  Alcotest.(check bool) "balanced multiple participants" true (let (is_bal, _) = Balanced.check_balanced g in is_bal)
 
 (* Test 12: Multiple participants - one missing in one branch *)
 let test_unbalanced_missing_participant () =
@@ -152,7 +154,7 @@ let test_unbalanced_missing_participant () =
     ("l1", branch1);
     ("l2", branch2);
   ], loc) in
-  Alcotest.(check bool) "unbalanced missing participant" false (Balanced.is_balanced g)
+  Alcotest.(check bool) "unbalanced missing participant" false (let (is_bal, _) = Balanced.check_balanced g in is_bal)
 
 (* Test suite *)
 let () =

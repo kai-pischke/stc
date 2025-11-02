@@ -1,28 +1,28 @@
 // A’s behaviour
 Pa = rec X.
   c?(price).
-  if (true ⊕ false) then
-    b![done]. c![done]. 0
+  if (true nondet false) then
+    b : done. c : done. 0
   else if (price <= 10) then
-    b!{buy: X}
+    c : buy . X
   else
+    b : split.
     b![price / 2].
-    b!{split:
-      b?{ yes: c!{buy: X},
-          no:  c!{repeat: X} }}
+      b?{ yes: c : buy . X,
+          no:  c : repeat . X }
 
 // B’s behaviour
 Pb = rec X.
   a?{
     split:
       a?(cost).
-      if (cost <= 6) then a!{yes: X} else a!{no: X},
+      if (cost <= 6) then a : yes. X else a : no. X,
     done: 0
   }
 
 // C’s behaviour
 Pc = rec Y.
-  a![10 ⊕ 12 ⊕ 14].
+  a![10 nondet 12 nondet 14].
   rec Z.
     a?{
       buy: 0,

@@ -1,6 +1,7 @@
 (library
  (name stc)
- (modules ast loc parser lexer pretty parse wellformed interpreter check utils subtype balanced))
+ (modules ast loc parser lexer pretty parse wellformed interpreter check utils subtype balanced type_graph)
+ (libraries ocamlgraph))
 
 (menhir
  (modules parser))

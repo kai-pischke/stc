@@ -1,0 +1,5 @@
+// Simple protocol for testing visualization
+// Client sends a request, server responds
+
+p -> q:[Int]; q -> p:[Bool]; end
+

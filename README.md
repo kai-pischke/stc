@@ -20,6 +20,7 @@ The tool is written in OCaml and is broadly organised as follows:
 - **`subtype.ml`** - Subtyping for local types (Gay & Hole 2005 coinductive algorithm)
 - **`utils.ml`** - Shared utility functions (unfolding, De Bruijn conversion)
 - **`balanced.ml`** - **Balancedness checking** for global types (ensures all branches involve same participants)
+- **`type_graph.ml`** - **Graph representation** of session types using OCamlGraph (with DOT visualization)
 - **`interpreter.ml`** - Runtime execution with random choice and error handling
 
 ### Application
@@ -147,11 +148,32 @@ dune exec ./main.exe -- --check-only calculator.stc
 - `-c, --check-only` - Only parse and check well-formedness (skip execution)
 - `-h, --help` - Show help message
 
+**Visualization Options:**
+- `--graph-dot FILE` - Generate DOT file from global type
+- `--graph-png FILE` - Generate PNG image from global type (requires graphviz)
+
 **Other Options** (for individual type parsing):
 - `-g, --global` - Parse as global type
 - `-l, --local` - Parse as local type  
 - `-p, --process` - Parse as process
 - `-s, --string` - Parse from string instead of file
+
+### Visualization Examples
+
+```bash
+# Generate PNG image from a global type
+dune exec ./main.exe -- -g --graph-png protocol.png -s "p -> q:[Int]; q -> p:[Bool]; end"
+
+# Generate DOT file from a recursive global type
+dune exec ./main.exe -- -g --graph-dot recursive.dot -s "rec X. p -> q{continue: X, done: end}"
+
+# Generate both DOT and PNG
+dune exec ./main.exe -- -g --graph-dot out.dot --graph-png out.png -s "(p -> q:[Int]; end) | (r -> s:[Bool]; end)"
+```
+
+**Note:** PNG generation requires graphviz to be installed:
+- macOS: `brew install graphviz`
+- Linux: `sudo apt install graphviz` or `sudo yum install graphviz`
 
 ### Legacy Usage Examples
 
